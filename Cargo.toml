@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-async-compression = { version = "0.4.34", features = ["futures-io", "tokio", "zstd"] }
+async-compression = { version = "0.4.34", features = ["futures-io", "zstd"] }
 blake3 = "1.8.2"
-futures-io = "0.3.31"
 futures-util = "0.3.31"
 nix = { version = "0.30.1", features = ["fs"] }
-reqwest = { version = "0.12.24", features = ["stream"] }
+reqwest = "0.12.24"
 temp-file = "0.1.9"
 zstd = "0.13.3"
 
@@ -17,4 +16,4 @@ zstd = "0.13.3"
 getrandom = "0.3.4"
 httpmock = "0.8.2"
 temp-dir = "0.1.16"
-tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.48.0", features = ["macros"] }
