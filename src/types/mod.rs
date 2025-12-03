@@ -3,23 +3,16 @@ use std::path::PathBuf;
 mod errors;
 pub use errors::*;
 
+pub use crate::streams::Stream;
+
 // 16 MB
 pub const CHUNK_SIZE: usize = 16 * 1024 * 1024;
 
-pub struct Tree {
-    pub streams: Vec<Stream>,
-}
-
 #[derive(Clone, Debug)]
-pub struct Stream {
-    // The hash of the underlying file
-    pub hash: String,
-    // Unix mode
-    pub permission: u32,
-    // Within the tree, where does this fit?
-    pub path: PathBuf,
-    // List of chunks that can be used to build the underlying file
-    pub chunks: Vec<Chunk>,
+pub struct Tree {
+    pub permissions: u32,
+    pub streams: Vec<Stream>,
+    pub subtrees: Vec<(PathBuf, Tree)>,
 }
 
 #[derive(Clone, Debug)]

@@ -1,11 +1,11 @@
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use super::Stream;
 use super::chunk::{create_chunk, download_chunk};
-use super::get_filename;
-use crate::types::{CHUNK_SIZE, Compression, Error, Stream};
+use crate::types::{CHUNK_SIZE, Compression, Error};
 
 // Reassembles/Downloads a stream from a Repository on the internet
 pub async fn download_stream(
@@ -16,7 +16,7 @@ pub async fn download_stream(
 ) -> Result<(), Error> {
     let client = reqwest::Client::builder().build()?;
 
-    let stream_path = store_path.join(get_filename(stream));
+    let stream_path = store_path.join(stream.get_raw_filename());
     let mut stream_path_tmp = stream_path.clone();
     stream_path_tmp.add_extension(".tmp");
 
@@ -53,16 +53,24 @@ pub async fn download_stream(
     Ok(())
 }
 
+pub fn get_stream_path(store_path: &Path, stream: &Stream) -> Result<PathBuf, Error> {
+    let path = store_path.join(stream.get_raw_filename());
+
+    Ok(path)
+}
+
 /// Creates a `Stream` and its chunks.
+///
+/// # Panics
+///
+/// This will panic if the path points to a directory.
 ///
 /// # Arguments
 /// `path`: The actual path on disk where there is the underlying file.
-/// `prefix`: The prefix that should be stripped from path.
 /// `compression`: Optional compression method.
 /// `repo_path`: Path to a Repository.
 pub fn create_stream(
     path: &Path,
-    prefix: &Path,
     compression: &Option<Compression>,
     repo_path: &Path,
 ) -> Result<Stream, Error> {
@@ -91,7 +99,7 @@ pub fn create_stream(
     }
 
     let stream = Stream {
-        path: path.strip_prefix(prefix)?.to_path_buf(),
+        filename: path.file_name().unwrap().to_os_string(),
         hash: hasher.finalize().to_hex().to_string(),
         permission: mode,
         chunks,
