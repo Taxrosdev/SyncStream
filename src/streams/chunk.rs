@@ -2,88 +2,104 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use crate::types::{CHUNK_SIZE, Chunk, Compression, Error};
+use crate::types::{Compression, Error};
 
-pub async fn download_chunk(
-    client: &reqwest::Client,
-    chunk: &Chunk,
-    repo_url: &str,
-    compression: &Option<Compression>,
-) -> Result<Vec<u8>, Error> {
-    let mut compression_ext = String::new();
-    if let Some(compression) = compression {
-        compression_ext = format!(".{}", get_compression_extension(compression));
-    }
+/// 16 MB
+pub const CHUNK_SIZE: usize = 16 * 1024 * 1024;
 
-    let res = client
-        .get(format!("{repo_url}/chunks/{}{compression_ext}", chunk.hash))
-        .send()
-        .await?
-        .error_for_status()?;
-
-    let raw = res.bytes().await?;
-    let raw_cursor = std::io::Cursor::new(&raw);
-
-    let data = match compression {
-        Some(Compression::Zstd) => zstd::decode_all(raw_cursor)?,
-        Some(Compression::Lz4) => todo!(),
-        Some(Compression::Xz) => todo!(),
-        None => raw.to_vec(),
-    };
-
-    let mut hasher = blake3::Hasher::new();
-
-    hasher.write_all(&data)?;
-
-    let hash = hasher.finalize().to_hex().to_string();
-    if hash != chunk.hash {
-        return Err(Error::HashError(chunk.hash.clone(), hash));
-    }
-
-    Ok(data)
+#[derive(Clone, Debug)]
+pub struct Chunk {
+    // The hash of the underlying chunk file
+    pub hash: String,
+    // Only will be present on the last chunk, as an indicator of how many bytes are in that chunk
+    pub disk_size: Option<u64>,
+    // Will be present on every chunk
+    pub network_size: u64,
 }
 
-pub fn create_chunk(
-    raw_data: &[u8],
-    repo_path: &Path,
-    compression: &Option<Compression>,
-) -> Result<Chunk, Error> {
-    let hash = blake3::hash(raw_data).to_hex().to_string();
+impl Chunk {
+    pub async fn download(
+        &self,
+        client: &reqwest::Client,
+        repo_url: &str,
+        compression: &Option<Compression>,
+    ) -> Result<Vec<u8>, Error> {
+        let mut compression_ext = String::new();
+        if let Some(compression) = compression {
+            compression_ext = format!(".{}", get_compression_extension(compression));
+        }
 
-    let chunk_dir = &repo_path.join("chunks");
-    let mut chunk_path = chunk_dir.join(&hash);
-    let mut chunk_path_tmp = chunk_path.clone();
-    if let Some(compression) = compression {
-        chunk_path.add_extension(get_compression_extension(compression));
-    };
-    chunk_path_tmp.add_extension("tmp");
+        let res = client
+            .get(format!("{repo_url}/chunks/{}{compression_ext}", self.hash))
+            .send()
+            .await?
+            .error_for_status()?;
 
-    let data = match compression {
-        Some(Compression::Zstd) => zstd::encode_all(raw_data, 3)?,
-        Some(Compression::Lz4) => todo!(),
-        Some(Compression::Xz) => todo!(),
-        None => raw_data.to_vec(),
-    };
+        let raw = res.bytes().await?;
+        let raw_cursor = std::io::Cursor::new(&raw);
 
-    // Create chunk dir
-    if !chunk_dir.exists() {
-        fs::create_dir_all(chunk_dir)?;
-    };
+        let data = match compression {
+            Some(Compression::Zstd) => zstd::decode_all(raw_cursor)?,
+            Some(Compression::Lz4) => todo!(),
+            Some(Compression::Xz) => todo!(),
+            None => raw.to_vec(),
+        };
 
-    fs::write(&chunk_path_tmp, &data)?;
-    fs::rename(&chunk_path_tmp, chunk_path)?;
+        let mut hasher = blake3::Hasher::new();
 
-    let chunk = Chunk {
-        hash,
-        network_size: data.len() as u64,
-        disk_size: if raw_data.len() < CHUNK_SIZE {
-            Some(raw_data.len() as u64)
-        } else {
-            None
-        },
-    };
+        hasher.write_all(&data)?;
 
-    Ok(chunk)
+        let hash = hasher.finalize().to_hex().to_string();
+        if hash != self.hash {
+            return Err(Error::HashError(self.hash.clone(), hash));
+        }
+
+        Ok(data)
+    }
+
+    /// Create a chunk on-disk from `raw_data`, and return it's `Chunk` metadata.
+    pub fn create(
+        raw_data: &[u8],
+        repo_path: &Path,
+        compression: &Option<Compression>,
+    ) -> Result<Chunk, Error> {
+        let hash = blake3::hash(raw_data).to_hex().to_string();
+
+        let chunk_dir = &repo_path.join("chunks");
+        let mut chunk_path = chunk_dir.join(&hash);
+        let mut chunk_path_tmp = chunk_path.clone();
+        if let Some(compression) = compression {
+            chunk_path.add_extension(get_compression_extension(compression));
+        };
+        chunk_path_tmp.add_extension("tmp");
+
+        let data = match compression {
+            Some(Compression::Zstd) => zstd::encode_all(raw_data, 3)?,
+            Some(Compression::Lz4) => todo!(),
+            Some(Compression::Xz) => todo!(),
+            None => raw_data.to_vec(),
+        };
+
+        // Create chunk dir
+        if !chunk_dir.exists() {
+            fs::create_dir_all(chunk_dir)?;
+        };
+
+        fs::write(&chunk_path_tmp, &data)?;
+        fs::rename(&chunk_path_tmp, chunk_path)?;
+
+        let chunk = Chunk {
+            hash,
+            network_size: data.len() as u64,
+            disk_size: if raw_data.len() < CHUNK_SIZE {
+                Some(raw_data.len() as u64)
+            } else {
+                None
+            },
+        };
+
+        Ok(chunk)
+    }
 }
 
 fn get_compression_extension(compression: &Compression) -> &'static str {
@@ -115,7 +131,7 @@ mod tests {
         let repo = TempDir::new().expect("could not create temp repo");
 
         // Test chunking
-        let chunk = create_chunk(&data, repo.path(), &Some(Compression::Zstd))
+        let chunk = Chunk::create(&data, repo.path(), &Some(Compression::Zstd))
             .expect("could not create chunk");
 
         // Assert that things exist on disk
@@ -140,14 +156,10 @@ mod tests {
         });
 
         let client = reqwest::Client::new();
-        let new_data = download_chunk(
-            &client,
-            &chunk,
-            &server.base_url(),
-            &Some(Compression::Zstd),
-        )
-        .await
-        .expect("could not download chunk");
+        let new_data = chunk
+            .download(&client, &server.base_url(), &Some(Compression::Zstd))
+            .await
+            .expect("could not download chunk");
 
         mock.assert();
 

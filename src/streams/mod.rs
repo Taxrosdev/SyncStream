@@ -1,10 +1,10 @@
-use crate::types::Chunk;
 use std::ffi::OsString;
 
 pub mod chunk;
 mod stream;
-
 pub use stream::*;
+
+use chunk::Chunk;
 
 #[derive(Clone, Debug)]
 pub struct Stream {
@@ -19,6 +19,7 @@ pub struct Stream {
 }
 
 impl Stream {
+    /// The filename that should be on disk
     pub fn get_raw_filename(&self) -> String {
         format!("{}{}", self.hash, self.permission.to_string())
     }

@@ -2,7 +2,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use crate::streams::{create_stream, download_stream};
+use crate::streams::Stream;
 use crate::types::{Compression, Error, Symlink, Tree};
 
 /// Downloads all streams required to build the tree
@@ -13,7 +13,7 @@ pub async fn download_tree(
     compression: &Option<Compression>,
 ) -> Result<(), Error> {
     for stream in &tree.streams {
-        download_stream(stream, repo_url, store_path, compression).await?;
+        stream.download(repo_url, store_path, compression).await?;
     }
     for tree in &tree.subtrees {
         Box::pin(download_tree(&tree.1, repo_url, store_path, compression)).await?;
@@ -31,7 +31,7 @@ pub async fn download_tree(
 pub fn deploy_tree(tree: &Tree, store_path: &Path, deploy_path: &Path) -> Result<(), Error> {
     for subtree in &tree.subtrees {
         let next_deploy_path = &deploy_path.join(&subtree.0);
-        fs::create_dir_all(&next_deploy_path)?;
+        fs::create_dir_all(next_deploy_path)?;
         deploy_tree(&subtree.1, store_path, next_deploy_path)?;
     }
 
@@ -65,7 +65,7 @@ pub fn create_tree(
         let file_name = entry.file_name();
 
         if file_type.is_file() {
-            let stream = create_stream(&entry.path(), compression, repo_path)?;
+            let stream = Stream::create(&entry.path(), compression, repo_path)?;
             base_tree.streams.push(stream);
         } else if file_type.is_dir() {
             let sub_tree = create_tree(repo_path, &entry.path(), compression)?;
