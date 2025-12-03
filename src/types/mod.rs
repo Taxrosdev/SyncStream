@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 mod errors;
@@ -13,6 +14,13 @@ pub struct Tree {
     pub permissions: u32,
     pub streams: Vec<Stream>,
     pub subtrees: Vec<(PathBuf, Tree)>,
+    pub symlinks: Vec<Symlink>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Symlink {
+    pub file_name: OsString,
+    pub target: PathBuf,
 }
 
 #[derive(Clone, Debug)]

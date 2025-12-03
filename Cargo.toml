@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 async-compression = { version = "0.4.34", features = ["futures-io", "tokio", "zstd"] }
 blake3 = "1.8.2"
-futures = { version = "0.3.31", features = ["async-await", "std"] }
 futures-io = "0.3.31"
 futures-util = "0.3.31"
 nix = { version = "0.30.1", features = ["fs"] }
