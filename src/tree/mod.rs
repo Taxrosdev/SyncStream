@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::streams::{create_stream, download_stream};
 use crate::types::{Compression, Error, Symlink, Tree};
 
+/// Downloads all streams required to build the tree
 pub async fn download_tree(
     tree: &Tree,
     repo_url: &str,
@@ -25,8 +26,8 @@ pub async fn download_tree(
 ///
 /// - This is not atomic.
 ///
-/// - Make sure that the tree is likely to be on the same partition, as this underthehood uses
-///   hardlinks and falls back onto copying, which will be much more expensive.
+/// - Make sure that the tree is likely to be on the same partition as the store, as this internally uses
+///   hardlinks and falls back onto copying, which will be expensive.
 pub fn deploy_tree(tree: &Tree, store_path: &Path, deploy_path: &Path) -> Result<(), Error> {
     for subtree in &tree.subtrees {
         let next_deploy_path = &deploy_path.join(&subtree.0);
@@ -44,6 +45,7 @@ pub fn deploy_tree(tree: &Tree, store_path: &Path, deploy_path: &Path) -> Result
     Ok(())
 }
 
+/// Create a `Tree` and the underlying `Chunks` inside the `Repository`.
 pub fn create_tree(
     repo_path: &Path,
     original_path: &Path,
