@@ -7,8 +7,10 @@ edition = "2024"
 async-compression = { version = "0.4.34", features = ["futures-io", "zstd"] }
 blake3 = "1.8.2"
 futures-util = "0.3.31"
+hex = "0.4.3"
 nix = { version = "0.30.1", features = ["fs"] }
 reqwest = "0.12.24"
+xxhash-rust = { version = "0.8.15", features = ["std", "xxh3"] }
 zstd = "0.13.3"
 
 [dev-dependencies]
