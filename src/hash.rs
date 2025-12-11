@@ -1,8 +1,8 @@
 use xxhash_rust::xxh3::Xxh3;
 
 pub enum Hasher {
-    Blake3 { hasher: Box<blake3::Hasher> },
-    Xxh3 { hasher: Box<Xxh3> },
+    Blake3(Box<blake3::Hasher>),
+    Xxh3(Box<Xxh3>),
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Debug)]
@@ -15,21 +15,17 @@ pub enum HashKind {
 impl Hasher {
     pub fn new(kind: HashKind) -> Self {
         match kind {
-            HashKind::Blake3 => Self::Blake3 {
-                hasher: Box::new(blake3::Hasher::new()),
-            },
-            HashKind::Xxh3 => Self::Xxh3 {
-                hasher: Box::new(Xxh3::new()),
-            },
+            HashKind::Blake3 => Self::Blake3(Box::new(blake3::Hasher::new())),
+            HashKind::Xxh3 => Self::Xxh3(Box::new(Xxh3::new())),
         }
     }
 
     pub fn update(&mut self, data: &[u8]) {
         match self {
-            Hasher::Blake3 { hasher } => {
+            Hasher::Blake3(hasher) => {
                 hasher.update(data);
             }
-            Hasher::Xxh3 { hasher } => {
+            Hasher::Xxh3(hasher) => {
                 hasher.update(data);
             }
         };
@@ -37,8 +33,8 @@ impl Hasher {
 
     pub fn finalize(self) -> String {
         match self {
-            Self::Blake3 { hasher } => hasher.finalize().to_hex().to_string(),
-            Self::Xxh3 { hasher } => hex::encode(hasher.digest().to_le_bytes()),
+            Self::Blake3(hasher) => hasher.finalize().to_hex().to_string(),
+            Self::Xxh3(hasher) => hex::encode(hasher.digest().to_le_bytes()),
         }
     }
 }
