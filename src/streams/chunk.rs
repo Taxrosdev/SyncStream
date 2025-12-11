@@ -9,11 +9,11 @@ pub const CHUNK_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct Chunk {
-    // The hash of the underlying chunk file
+    /// The hash of the underlying chunk file
     pub hash: String,
-    // Only will be present on the last chunk, as an indicator of how many bytes are in that chunk
-    pub disk_size: Option<u64>,
-    // Will be present on every chunk
+    /// Uncompressed size
+    pub disk_size: u64,
+    /// Compressed size
     pub network_size: u64,
 }
 
@@ -91,11 +91,7 @@ impl Chunk {
         let chunk = Chunk {
             hash,
             network_size: data.len() as u64,
-            disk_size: if raw_data.len() < CHUNK_SIZE {
-                Some(raw_data.len() as u64)
-            } else {
-                None
-            },
+            disk_size: raw_data.len() as u64,
         };
 
         Ok(chunk)
