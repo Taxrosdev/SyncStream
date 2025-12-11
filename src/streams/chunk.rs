@@ -115,14 +115,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_chunks() {
-        // Generate lots of testing data
-        let mut data = Vec::with_capacity(CHUNK_SIZE + 16);
-
-        // Generating mass garbage as test data.
-        for _ in 0..=data.capacity() {
-            let y = getrandom::u32().expect("could not fill data with random garbage");
-            data.push(y.div_ceil(8) as u8);
-        }
+        // Generate testing data
+        let data = vec![0; CHUNK_SIZE + 16];
 
         let repo = TempDir::new().expect("could not create temp repo");
 
