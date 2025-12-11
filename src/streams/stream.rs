@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::Stream;
 use super::chunk::{CHUNK_SIZE, Chunk};
+use crate::hash::{HashKind, Hasher};
 use crate::types::{Compression, Error};
 
 impl Stream {
@@ -14,6 +15,7 @@ impl Stream {
         repo_url: &str,
         store_path: &Path,
         compression: &Option<Compression>,
+        hash_kind: HashKind,
     ) -> Result<(), Error> {
         let client = reqwest::Client::builder().build()?;
 
@@ -24,17 +26,19 @@ impl Stream {
         let mut file = File::create(&stream_path_tmp)?;
         file.lock()?;
 
-        let mut hasher = blake3::Hasher::new();
+        let mut hasher = Hasher::new(hash_kind);
 
         // Download and write all chunks
         for chunk in &self.chunks {
-            let chunk_data = chunk.download(&client, repo_url, compression).await?;
+            let chunk_data = chunk
+                .download(&client, repo_url, compression, hash_kind)
+                .await?;
             file.write_all(&chunk_data)?;
-            hasher.write_all(&chunk_data)?;
+            hasher.update(&chunk_data);
         }
 
         // Check the total hash
-        let stream_hash = hasher.finalize().to_hex().to_string();
+        let stream_hash = hasher.finalize();
         if stream_hash != self.hash {
             fs::remove_file(stream_path_tmp)?;
             return Err(Error::HashError(self.hash.clone(), stream_hash));
@@ -73,8 +77,9 @@ impl Stream {
     /// `repo_path`: Path to a Repository.
     pub fn create(
         path: &Path,
-        compression: &Option<Compression>,
         repo_path: &Path,
+        compression: &Option<Compression>,
+        hash_kind: HashKind,
     ) -> Result<Stream, Error> {
         let file = &mut File::open(path)?;
         file.lock()?;
@@ -86,7 +91,7 @@ impl Stream {
         let mode = permissions.mode();
 
         let mut chunks = Vec::new();
-        let mut hasher = blake3::Hasher::new();
+        let mut hasher = Hasher::new(hash_kind);
 
         loop {
             let mut chunk_buf = Vec::with_capacity(CHUNK_SIZE);
@@ -95,14 +100,14 @@ impl Stream {
                 break;
             }
 
-            hasher.write_all(&chunk_buf)?;
-            let chunk = Chunk::create(&chunk_buf, repo_path, compression)?;
+            hasher.update(&chunk_buf);
+            let chunk = Chunk::create(&chunk_buf, repo_path, compression, hash_kind)?;
             chunks.push(chunk);
         }
 
         let stream = Stream {
             filename: path.file_name().unwrap().to_os_string(),
-            hash: hasher.finalize().to_hex().to_string(),
+            hash: hasher.finalize(),
             permission: mode,
             chunks,
         };

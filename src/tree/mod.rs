@@ -2,6 +2,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+use crate::hash::HashKind;
 use crate::streams::Stream;
 use crate::types::{Compression, Error, Symlink, Tree};
 
@@ -11,12 +12,22 @@ pub async fn download_tree(
     repo_url: &str,
     store_path: &Path,
     compression: &Option<Compression>,
+    hash_kind: HashKind,
 ) -> Result<(), Error> {
     for stream in &tree.streams {
-        stream.download(repo_url, store_path, compression).await?;
+        stream
+            .download(repo_url, store_path, compression, hash_kind)
+            .await?;
     }
     for tree in &tree.subtrees {
-        Box::pin(download_tree(&tree.1, repo_url, store_path, compression)).await?;
+        Box::pin(download_tree(
+            &tree.1,
+            repo_url,
+            store_path,
+            compression,
+            hash_kind,
+        ))
+        .await?;
     }
 
     Ok(())
@@ -50,6 +61,7 @@ pub fn create_tree(
     repo_path: &Path,
     original_path: &Path,
     compression: &Option<Compression>,
+    hash_kind: HashKind,
 ) -> Result<Tree, Error> {
     let mut base_tree = Tree {
         permissions: original_path.metadata()?.permissions().mode(),
@@ -65,10 +77,10 @@ pub fn create_tree(
         let file_name = entry.file_name();
 
         if file_type.is_file() {
-            let stream = Stream::create(&entry.path(), compression, repo_path)?;
+            let stream = Stream::create(&entry.path(), repo_path, compression, hash_kind)?;
             base_tree.streams.push(stream);
         } else if file_type.is_dir() {
-            let sub_tree = create_tree(repo_path, &entry.path(), compression)?;
+            let sub_tree = create_tree(repo_path, &entry.path(), compression, hash_kind)?;
             base_tree.subtrees.push((file_name.into(), sub_tree));
         } else if file_type.is_symlink() {
             let symlink = Symlink {
@@ -117,7 +129,7 @@ mod tests {
         fs::write(original_path.join("a/b/c"), contents_b)?;
 
         // Create a tree and host it on a mock server
-        let tree = create_tree(repo_path, original_path, compression)?;
+        let tree = create_tree(repo_path, original_path, compression, HashKind::Blake3)?;
 
         let server = MockServer::start();
         let mock_a = server.mock(|when, then| {
@@ -142,7 +154,14 @@ mod tests {
         });
 
         // Download the chunks from the mock server, and ensure it was accessed
-        download_tree(&tree, &server.base_url(), store_path, compression).await?;
+        download_tree(
+            &tree,
+            &server.base_url(),
+            store_path,
+            compression,
+            HashKind::Blake3,
+        )
+        .await?;
 
         mock_a.assert();
         mock_b.assert();

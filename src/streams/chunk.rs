@@ -1,7 +1,7 @@
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 
+use crate::hash::{HashKind, Hasher};
 use crate::types::{Compression, Error};
 
 /// 16 MB
@@ -23,6 +23,7 @@ impl Chunk {
         client: &reqwest::Client,
         repo_url: &str,
         compression: &Option<Compression>,
+        hash_kind: HashKind,
     ) -> Result<Vec<u8>, Error> {
         let mut compression_ext = String::new();
         if let Some(compression) = compression {
@@ -45,11 +46,11 @@ impl Chunk {
             None => raw.to_vec(),
         };
 
-        let mut hasher = blake3::Hasher::new();
+        // Hash and check
+        let mut hasher = Hasher::new(hash_kind);
+        hasher.update(&data);
+        let hash = hasher.finalize();
 
-        hasher.write_all(&data)?;
-
-        let hash = hasher.finalize().to_hex().to_string();
         if hash != self.hash {
             return Err(Error::HashError(self.hash.clone(), hash));
         }
@@ -62,8 +63,11 @@ impl Chunk {
         raw_data: &[u8],
         repo_path: &Path,
         compression: &Option<Compression>,
+        hash_kind: HashKind,
     ) -> Result<Chunk, Error> {
-        let hash = blake3::hash(raw_data).to_hex().to_string();
+        let mut hasher = Hasher::new(hash_kind);
+        hasher.update(raw_data);
+        let hash = hasher.finalize();
 
         let chunk_dir = &repo_path.join("chunks");
         let mut chunk_path = chunk_dir.join(&hash);
@@ -121,8 +125,13 @@ mod tests {
         let repo = TempDir::new().expect("could not create temp repo");
 
         // Test chunking
-        let chunk = Chunk::create(&data, repo.path(), &Some(Compression::Zstd))
-            .expect("could not create chunk");
+        let chunk = Chunk::create(
+            &data,
+            repo.path(),
+            &Some(Compression::Zstd),
+            HashKind::Blake3,
+        )
+        .expect("could not create chunk");
 
         // Assert that things exist on disk
         assert!(
@@ -147,7 +156,12 @@ mod tests {
 
         let client = reqwest::Client::new();
         let new_data = chunk
-            .download(&client, &server.base_url(), &Some(Compression::Zstd))
+            .download(
+                &client,
+                &server.base_url(),
+                &Some(Compression::Zstd),
+                HashKind::Blake3,
+            )
             .await
             .expect("could not download chunk");
 
