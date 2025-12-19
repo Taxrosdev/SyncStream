@@ -1,0 +1,24 @@
+[package]
+name = "syncstream"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-compression = { version = "0.4.36", features = ["futures-io", "lz4", "tokio", "xz", "zstd"] }
+blake3 = "1.8.2"
+futures-core = "0.3.31"
+futures-util = { version = "0.3.31", features = ["io"] }
+nix = { version = "0.30.1", features = ["fs"] }
+reqwest = "0.12.26"
+tokio = { version = "1.48.0", features = ["fs", "macros", "rt"], optional = true }
+tokio-stream = { version = "0.1.17", optional = true }
+tokio-util = { version = "0.7.17", features = ["compat"], optional = true }
+
+[features]
+tokio = ["dep:tokio", "dep:tokio-util", "dep:tokio-stream"]
+
+[dev-dependencies]
+httpmock = "0.8.2"
+temp-dir = "0.1.16"
+temp-file = "0.1.9"
+tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread"] }
