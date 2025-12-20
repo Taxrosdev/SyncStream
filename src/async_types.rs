@@ -1,8 +1,10 @@
 // Async*, *Ext
 #[cfg(not(feature = "tokio"))]
-pub use futures_util::{AsyncWrite, AsyncWriteExt, StreamExt};
+pub use futures_util::{
+    AsyncBufRead, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, StreamExt, io::BufReader,
+};
 #[cfg(feature = "tokio")]
-pub use tokio::io::{AsyncWrite, AsyncWriteExt};
+pub use tokio::io::{AsyncBufRead, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 #[cfg(feature = "tokio")]
 pub use tokio_stream::StreamExt;
 
@@ -12,10 +14,14 @@ pub use futures_util::stream::unfold;
 
 // Async Compression
 #[cfg(not(feature = "tokio"))]
-pub use async_compression::futures::write::{
-    Lz4Decoder, Lz4Encoder, XzDecoder, XzEncoder, ZstdDecoder, ZstdEncoder,
+pub use async_compression::futures::{
+    bufread::{Lz4Decoder, XzDecoder, ZstdDecoder},
+    write::{Lz4Encoder, XzEncoder, ZstdEncoder},
 };
 #[cfg(feature = "tokio")]
-pub use async_compression::tokio::write::{
-    Lz4Decoder, Lz4Encoder, XzDecoder, XzEncoder, ZstdDecoder, ZstdEncoder,
+pub use async_compression::tokio::{
+    bufread::{Lz4Decoder, XzDecoder, ZstdDecoder},
+    write::{Lz4Encoder, XzEncoder, ZstdEncoder},
 };
+
+pub use futures_util::TryStreamExt;
