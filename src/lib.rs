@@ -5,6 +5,7 @@ mod compression;
 mod error;
 mod fs;
 pub mod stream;
+pub mod tree;
 
 pub use compression::CompressionKind;
 pub use error::{Error, Result};
