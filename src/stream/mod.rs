@@ -5,6 +5,9 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+
 use crate::compression::CompressionKind;
 use crate::fs;
 
@@ -12,6 +15,8 @@ use crate::fs;
 pub struct Stream {
     pub hash: String,
     pub file_name: OsString,
+    #[cfg(unix)]
+    pub mode: Option<u32>,
 }
 
 impl Stream {
@@ -83,6 +88,10 @@ impl Stream {
             .ok_or(io::Error::from(io::ErrorKind::IsADirectory))?
             .into();
 
+        // Get Permissions/Mode
+        #[cfg(unix)]
+        let mode = file.as_ref().metadata()?.mode();
+
         let mut hasher = Hasher::new();
 
         let mut output_temp_path = stream_dir.as_ref().join(&file_name);
@@ -119,7 +128,12 @@ impl Stream {
             std::fs::copy(&file, &uncompressed_path)?;
         };
 
-        Ok(Self { hash, file_name })
+        Ok(Self {
+            hash,
+            file_name,
+            #[cfg(unix)]
+            mode: Some(mode),
+        })
     }
 }
 
