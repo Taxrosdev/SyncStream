@@ -1388,6 +1388,7 @@ dependencies = [
  "reqwest",
  "temp-dir",
  "temp-file",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-util",
