@@ -2,6 +2,12 @@
 name = "syncstream"
 version = "0.1.0"
 edition = "2024"
+authors = ["Taxrosdev", "The TimelessOS Team"]
+rust-version = "1.85"
+description = "Simple yet capable content-addressed storage, designed for package managers and immutable distros."
+readme = "README.md"
+repository = "https://github.com/TimelessOS/SyncStream"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 async-compression = { version = "0.4.36", features = ["futures-io", "lz4", "xz", "zstd"] }
@@ -23,4 +29,10 @@ httpmock = "0.8.2"
 temp-dir = "0.1.16"
 temp-file = "0.1.9"
 tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = "warn"
 
