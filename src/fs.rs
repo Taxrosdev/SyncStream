@@ -1,11 +1,17 @@
+// Exception due to general structure needing to be the same
+#![allow(clippy::unused_async)]
+
 use crate::async_types::{AsyncWrite, AsyncWriteExt, Stream, unfold};
-use std::io::{self, Read, Write};
+use std::io;
 use std::path::Path;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 #[cfg(not(feature = "tokio"))]
 use futures_util::io::AllowStdIo;
+
+#[cfg(not(feature = "tokio"))]
+use std::io::{Read, Write};
 
 const CHUNK_SIZE: usize = 8 * 1024;
 
