@@ -1,4 +1,4 @@
-//! Simple yet capable File/Tree syncing library.
+#![doc = include_str!("../README.md")]
 
 mod async_types;
 mod compression;
