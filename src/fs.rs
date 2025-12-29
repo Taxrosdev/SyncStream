@@ -1,5 +1,4 @@
 use crate::async_types::{AsyncWrite, AsyncWriteExt, Stream, unfold};
-use nix::fcntl::{AT_FDCWD, RenameFlags, renameat2};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use std::pin::Pin;
@@ -145,8 +144,11 @@ pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::
     std::fs::write(path, contents)
 }
 
-/// Atomic Rename
+/// Atomic Rename (on supported platforms)
+#[cfg(unix)]
 pub fn rename<P: AsRef<Path>>(original_path: P, new_path: P) -> io::Result<()> {
+    use nix::fcntl::{AT_FDCWD, RenameFlags, renameat2};
+
     let is_dir = original_path.as_ref().metadata()?.is_dir();
 
     if !new_path.as_ref().exists() {
@@ -172,6 +174,22 @@ pub fn rename<P: AsRef<Path>>(original_path: P, new_path: P) -> io::Result<()> {
             std::fs::remove_file(original_path)?;
         }
     }
+
+    Ok(())
+}
+
+/// Atomic Rename (on supported platforms)
+#[cfg(not(unix))]
+pub fn rename<P: AsRef<Path>>(original_path: P, new_path: P) -> io::Result<()> {
+    if new_path.as_ref().exists() {
+        if new_path.as_ref().is_file() {
+            std::fs::remove_file(&new_path)?;
+        } else {
+            std::fs::remove_dir_all(&new_path)?;
+        }
+    }
+
+    std::fs::rename(original_path, new_path)?;
 
     Ok(())
 }
