@@ -11,7 +11,7 @@ use std::task::{Context, Poll};
 use futures_util::io::AllowStdIo;
 
 #[cfg(not(feature = "tokio"))]
-use std::io::{Read, Write};
+use std::io::Read;
 
 const CHUNK_SIZE: usize = 8 * 1024;
 
@@ -21,19 +21,9 @@ pub struct File {
 
 impl File {
     #[cfg(feature = "tokio")]
-    pub async fn write<C: AsRef<[u8]>>(&mut self, contents: C) -> io::Result<()> {
-        self.inner.write_all(contents.as_ref()).await?;
-        Ok(())
-    }
-    #[cfg(not(feature = "tokio"))]
-    pub async fn write<C: AsRef<[u8]>>(&mut self, contents: C) -> io::Result<()> {
-        self.inner.write_all(contents.as_ref()).await?;
-        Ok(())
-    }
-
-    #[cfg(feature = "tokio")]
     pub async fn create_new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let inner = tokio::fs::File::create_new(path).await?;
+
         Ok(Self {
             inner: Box::pin(inner),
         })
@@ -43,6 +33,7 @@ impl File {
     pub async fn create_new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let inner = std::fs::File::create_new(path)?;
         let inner = AllowStdIo::new(inner);
+
         Ok(Self {
             inner: Box::pin(inner),
         })
@@ -73,26 +64,22 @@ impl AsyncWrite for File {
     }
 }
 
-#[cfg(feature = "tokio")]
+/// Not recommended outside of tests, as loads entire file into memory.
 pub async fn read_to_end<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
-    tokio::fs::read(path).await
+    #[cfg(feature = "tokio")]
+    let data = tokio::fs::read(path).await?;
+    #[cfg(not(feature = "tokio"))]
+    let data = std::fs::read(path)?;
+
+    Ok(data)
 }
 
-#[cfg(feature = "tokio")]
 pub async fn remove_file<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> {
+    #[cfg(feature = "tokio")]
     tokio::fs::remove_file(path).await?;
-    Ok(())
-}
-
-#[cfg(not(feature = "tokio"))]
-pub async fn remove_file<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> {
+    #[cfg(not(feature = "tokio"))]
     std::fs::remove_file(path)?;
     Ok(())
-}
-
-#[cfg(not(feature = "tokio"))]
-pub async fn read_to_end<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
-    std::fs::read(path)
 }
 
 #[cfg(feature = "tokio")]
@@ -137,17 +124,16 @@ pub async fn read_chunked<P: AsRef<Path>>(
     })))
 }
 
-#[cfg(feature = "tokio")]
 pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(
     path: P,
     contents: C,
 ) -> Result<(), std::io::Error> {
-    tokio::fs::write(path, contents).await
-}
+    #[cfg(feature = "tokio")]
+    tokio::fs::write(path, contents).await?;
+    #[cfg(not(feature = "tokio"))]
+    std::fs::write(path, contents)?;
 
-#[cfg(not(feature = "tokio"))]
-pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
-    std::fs::write(path, contents)
+    Ok(())
 }
 
 /// Atomic Rename (on supported platforms)
