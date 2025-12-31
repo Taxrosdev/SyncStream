@@ -2,11 +2,11 @@
 name = "syncstream"
 version = "0.1.0"
 edition = "2024"
-authors = ["Taxrosdev", "The TimelessOS Team"]
+authors = ["Taxrosdev"]
 rust-version = "1.85"
 description = "Simple yet capable content-addressed storage, designed for package managers and immutable distros."
 readme = "README.md"
-repository = "https://github.com/TimelessOS/SyncStream"
+repository = "https://github.com/Taxrosdev/SyncStream"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
