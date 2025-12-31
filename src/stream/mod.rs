@@ -183,6 +183,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_create_chunk_large() -> io::Result<()> {
+        let stream_dir = TempDir::new()?;
+
+        for input in [&[][..], &[0u8; 1024][..], &[0u8; 16384][..]] {
+            let compression_kind = CompressionKind::None;
+            let test_file = TempFile::new()?.with_contents(input)?;
+
+            let stream =
+                Stream::create(test_file.path(), stream_dir.path(), compression_kind).await?;
+
+            assert_eq!(stream.file_name, test_file.path().file_name().unwrap());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_download_basic() -> crate::Result<()> {
         let remote_stream_dir = TempDir::new()?;
         let local_stream_dir = TempDir::new()?;
@@ -223,6 +240,47 @@ mod tests {
         assert_eq!(fs::read_to_end(local_stream_file).await?, test_data);
 
         stream_mock.assert();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_download_invalid_hash() -> crate::Result<()> {
+        let remote_stream_dir = TempDir::new()?;
+        let local_stream_dir = TempDir::new()?;
+        let test_data = b"This is some test data.";
+        let test_file = TempFile::new()?.with_contents(test_data)?;
+
+        let stream = Stream::create(
+            test_file.path(),
+            remote_stream_dir.path(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        fs::write(&remote_stream_dir.child(&stream.hash), "a").await?;
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path(format!("/streams/{}", &stream.hash));
+            then.status(200).body_from_file(
+                remote_stream_dir
+                    .path()
+                    .join(&stream.hash)
+                    .to_str()
+                    .unwrap(),
+            );
+        });
+
+        let res = stream
+            .download(
+                &server.base_url(),
+                local_stream_dir.path(),
+                CompressionKind::Zstd,
+            )
+            .await;
+
+        assert!(res.is_err());
 
         Ok(())
     }
