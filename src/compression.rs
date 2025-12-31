@@ -11,6 +11,7 @@ pub enum CompressionKind {
 }
 
 impl CompressionKind {
+    #[must_use]
     pub fn try_get_extension(&self) -> Option<&'static str> {
         match self {
             CompressionKind::Zstd => Some("zstd"),
@@ -21,10 +22,11 @@ impl CompressionKind {
     }
 
     /// WARNING: This should only be used internally, and may be removed in a future release.
+    #[must_use]
     pub fn get_extension_with_dot(&self) -> String {
         match self.try_get_extension() {
             Some(e) => format!(".{e}"),
-            None => "".to_string(),
+            None => String::new(),
         }
     }
 

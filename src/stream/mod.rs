@@ -21,6 +21,11 @@ pub struct Stream {
 
 impl Stream {
     /// Downloads this stream using reqwest
+    ///
+    /// # Errors
+    ///
+    /// - Filesystem errors (Typically out of space)
+    /// - Network errors (Non-2xx codes, etc)
     pub async fn download<P: AsRef<Path>, S: AsRef<str>>(
         &self,
         url: S,
@@ -49,7 +54,7 @@ impl Stream {
         #[cfg(not(feature = "tokio"))]
         let stream = res
             .bytes_stream()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            .map_err(io::Error::other)
             .into_async_read();
 
         let mut reader = compression_kind.decompress(BufReader::new(stream));
@@ -77,6 +82,11 @@ impl Stream {
         }
     }
 
+    /// Creates a Stream from a raw on-disk File.
+    ///
+    /// # Errors
+    ///
+    /// - Out of storage/Permissions Errors
     pub async fn create<F: AsRef<Path>, S: AsRef<Path>>(
         file: F,
         stream_dir: S,
@@ -126,7 +136,7 @@ impl Stream {
         fs::rename(output_temp_path, compressed_path)?;
         if std::fs::hard_link(&file, &uncompressed_path).is_err() {
             std::fs::copy(&file, &uncompressed_path)?;
-        };
+        }
 
         Ok(Self {
             hash,
@@ -162,7 +172,7 @@ mod tests {
         let mut compressed_file = uncompressed_file.clone();
         if let Some(extension) = compression_kind.try_get_extension() {
             compressed_file.set_extension(extension);
-        };
+        }
 
         assert!(uncompressed_file.exists());
         assert!(compressed_file.exists());

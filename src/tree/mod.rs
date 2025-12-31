@@ -22,6 +22,11 @@ pub struct Symlink {
 
 impl Tree {
     /// Downloads all streams required to build the tree
+    ///
+    /// # Errors
+    ///
+    /// - Filesystem errors (Typically out of space)
+    /// - Network errors (Non-2xx codes, etc)
     pub async fn download(
         &self,
         repo_url: &str,
@@ -44,6 +49,10 @@ impl Tree {
     ///
     /// - Make sure that the tree is likely to be on the same partition as the store, as this internally uses
     ///   hardlinks and falls back onto copying, which will be expensive.
+    ///
+    /// # Errors
+    ///
+    /// - Out of storage/Permissions Errors
     pub fn deploy(&self, stream_dir: &Path, deploy_path: &Path) -> crate::Result<()> {
         for subtree in &self.subtrees {
             let next_deploy_path = &deploy_path.join(&subtree.0);
@@ -57,7 +66,7 @@ impl Tree {
 
             if std::fs::hard_link(&original_path, &target_path).is_err() {
                 std::fs::copy(&original_path, &target_path)?;
-            };
+            }
         }
 
         for link in &self.symlinks {
@@ -68,6 +77,10 @@ impl Tree {
     }
 
     /// Create a `Tree` and the underlying `Stream`s inside the `Repository`.
+    ///
+    /// # Errors
+    ///
+    /// - Out of storage/Permissions Errors
     pub async fn create(
         remote_stream_path: &Path,
         original_path: &Path,
@@ -132,36 +145,34 @@ mod tests {
         let deploy_path = deploy_dir.path();
 
         // Create random contents
-        let contents_a = b"contents";
-        let contents_a_hash = blake3::hash(contents_a).to_hex().to_string();
-        fs::write(original_path.join("file"), contents_a).await?;
+        let a_contents = b"contents";
+        let a_hash = blake3::hash(a_contents).to_hex().to_string();
+        fs::write(original_path.join("file"), a_contents).await?;
 
         std::fs::create_dir_all(original_path.join("a/b"))?;
 
-        let contents_b = b"other_contents";
-        let contents_b_hash = blake3::hash(contents_b).to_hex().to_string();
-        fs::write(original_path.join("a/b/c"), contents_b).await?;
+        let b_contents = b"other_contents";
+        let b_hash = blake3::hash(b_contents).to_hex().to_string();
+        fs::write(original_path.join("a/b/c"), b_contents).await?;
 
         // Create a tree and host it on a mock server
         let tree = Tree::create(remote_stream_path, original_path, compression).await?;
 
         let server = MockServer::start();
         let mock_a = server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/streams/{}.zstd", contents_a_hash));
+            when.method(GET).path(format!("/streams/{a_hash}.zstd"));
             then.status(200).body_from_file(
                 remote_stream_path
-                    .join(format!("{}.zstd", contents_a_hash))
+                    .join(format!("{a_hash}.zstd"))
                     .to_str()
                     .expect("non unicode path to testdir"),
             );
         });
         let mock_b = server.mock(|when, then| {
-            when.method(GET)
-                .path(format!("/streams/{}.zstd", contents_b_hash));
+            when.method(GET).path(format!("/streams/{b_hash}.zstd"));
             then.status(200).body_from_file(
                 remote_stream_path
-                    .join(format!("{}.zstd", contents_b_hash))
+                    .join(format!("{b_hash}.zstd"))
                     .to_str()
                     .expect("non unicode path to testdir"),
             );
@@ -178,10 +189,10 @@ mod tests {
         tree.deploy(local_stream_path, deploy_path)?;
 
         // Ensure everything is correct
-        assert_eq!(fs::read_to_end(deploy_path.join("file")).await?, contents_a);
+        assert_eq!(fs::read_to_end(deploy_path.join("file")).await?, a_contents);
         assert_eq!(
             fs::read_to_end(deploy_path.join("a/b/c")).await?,
-            contents_b
+            b_contents
         );
 
         Ok(())
