@@ -14,7 +14,7 @@ async-compression = { version = "0.4.36", features = ["futures-io", "lz4", "xz",
 blake3 = "1.8.2"
 futures-core = "0.3.31"
 futures-util = { version = "0.3.31", features = ["io"] }
-reqwest = { version = "0.13.1", features = ["stream"] }
+reqwest = { version = "0.13.1", features = ["stream"], optional = true }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["fs", "macros", "rt"], optional = true }
 tokio-stream = { version = "0.1.17", optional = true }
@@ -24,6 +24,8 @@ tokio-util = { version = "0.7.17", optional = true }
 nix = { version = "0.30.1", features = ["fs"] }
 
 [features]
+default = ["reqwest"]
+reqwest = ["dep:reqwest"]
 tokio = ["dep:tokio", "dep:tokio-stream", "dep:tokio-util", "async-compression/tokio"]
 
 [dev-dependencies]

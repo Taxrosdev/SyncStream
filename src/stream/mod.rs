@@ -30,6 +30,7 @@ impl Stream {
     ///
     /// - Filesystem errors (Typically out of space)
     /// - Network errors (Non-2xx codes, etc)
+    #[cfg(feature = "reqwest")]
     pub async fn download<P: AsRef<Path>, S: AsRef<str>>(
         &self,
         url: S,
@@ -233,6 +234,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "reqwest")]
     async fn test_download_basic() -> crate::Result<()> {
         let remote_stream_dir = TempDir::new()?;
         let local_stream_dir = TempDir::new()?;
@@ -278,6 +280,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "reqwest")]
     async fn test_download_invalid_hash() -> crate::Result<()> {
         let remote_stream_dir = TempDir::new()?;
         let local_stream_dir = TempDir::new()?;

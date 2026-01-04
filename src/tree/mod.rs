@@ -27,6 +27,7 @@ impl Tree {
     ///
     /// - Filesystem errors (Typically out of space)
     /// - Network errors (Non-2xx codes, etc)
+    #[cfg(feature = "reqwest")]
     pub async fn download(
         &self,
         repo_url: &str,
@@ -142,6 +143,7 @@ mod tests {
     use crate::fs;
 
     #[tokio::test]
+    #[cfg(feature = "reqwest")]
     async fn test_e2e_tree() -> crate::Result<()> {
         let compression = CompressionKind::Zstd;
 

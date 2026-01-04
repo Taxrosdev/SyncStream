@@ -5,6 +5,7 @@ pub enum Error {
     #[error("io error: {0:?}")]
     IoError(#[from] std::io::Error),
     #[error("network error: {0:?}")]
+    #[cfg(feature = "reqwest")]
     NetworkError(#[from] reqwest::Error),
     /// Expected and Recieved
     #[error("hash error: expected {0}, got {1}")]
