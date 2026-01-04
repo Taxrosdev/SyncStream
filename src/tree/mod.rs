@@ -74,7 +74,7 @@ impl Tree {
         }
 
         for stream in &self.streams {
-            let original_path = stream_dir.join(&stream.raw_filename());
+            let original_path = stream_dir.join(stream.raw_filename());
             let target_path = deploy_path.join(&stream.file_name);
 
             if std::fs::hard_link(&original_path, &target_path).is_err() {

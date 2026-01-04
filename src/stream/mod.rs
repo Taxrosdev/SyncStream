@@ -46,7 +46,7 @@ impl Stream {
         .await?;
         let res = res.error_for_status()?;
 
-        let file_path = stream_dir.as_ref().join(&self.raw_filename());
+        let file_path = stream_dir.as_ref().join(self.raw_filename());
         let mut tmp_file_path = file_path.clone();
         tmp_file_path.set_extension("tmp");
         let mut file = fs::File::create_new(&tmp_file_path).await?;
