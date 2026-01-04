@@ -22,7 +22,7 @@ pub struct Symlink {
 
 impl Tree {
     /// Downloads all streams required to build the tree
-    ///
+    //must_use/
     /// # Errors
     ///
     /// - Filesystem errors (Typically out of space)
@@ -45,6 +45,18 @@ impl Tree {
         Ok(())
     }
 
+    #[must_use]
+    pub fn all_streams(&self) -> Vec<Stream> {
+        let mut streams = self.streams.clone();
+
+        for tree in &self.subtrees {
+            let added_streams = tree.1.all_streams();
+            streams.extend_from_slice(&added_streams);
+        }
+
+        streams
+    }
+
     /// # Warning
     ///
     /// - Make sure that the tree is likely to be on the same partition as the store, as this internally uses
@@ -61,7 +73,7 @@ impl Tree {
         }
 
         for stream in &self.streams {
-            let original_path = stream_dir.join(&stream.hash);
+            let original_path = stream_dir.join(&stream.raw_filename());
             let target_path = deploy_path.join(&stream.file_name);
 
             if std::fs::hard_link(&original_path, &target_path).is_err() {
@@ -122,7 +134,7 @@ impl Tree {
 
 #[cfg(test)]
 mod tests {
-    use httpmock::prelude::*;
+    use httpmock::{Mock, prelude::*};
     use temp_dir::TempDir;
 
     use super::*;
@@ -146,44 +158,41 @@ mod tests {
 
         // Create random contents
         let a_contents = b"contents";
-        let a_hash = blake3::hash(a_contents).to_hex().to_string();
         fs::write(original_path.join("file"), a_contents).await?;
 
         std::fs::create_dir_all(original_path.join("a/b"))?;
 
         let b_contents = b"other_contents";
-        let b_hash = blake3::hash(b_contents).to_hex().to_string();
         fs::write(original_path.join("a/b/c"), b_contents).await?;
 
         // Create a tree and host it on a mock server
         let tree = Tree::create(remote_stream_path, original_path, compression).await?;
 
         let server = MockServer::start();
-        let mock_a = server.mock(|when, then| {
-            when.method(GET).path(format!("/streams/{a_hash}.zstd"));
-            then.status(200).body_from_file(
-                remote_stream_path
-                    .join(format!("{a_hash}.zstd"))
-                    .to_str()
-                    .expect("non unicode path to testdir"),
-            );
-        });
-        let mock_b = server.mock(|when, then| {
-            when.method(GET).path(format!("/streams/{b_hash}.zstd"));
-            then.status(200).body_from_file(
-                remote_stream_path
-                    .join(format!("{b_hash}.zstd"))
-                    .to_str()
-                    .expect("non unicode path to testdir"),
-            );
-        });
+        let mocks: Vec<Mock> = tree
+            .all_streams()
+            .into_iter()
+            .map(|stream| {
+                server.mock(|when, then| {
+                    when.method(GET)
+                        .path(format!("/streams/{}.zstd", stream.raw_filename()));
+                    then.status(200).body_from_file(
+                        remote_stream_path
+                            .join(format!("{}.zstd", stream.raw_filename()))
+                            .to_str()
+                            .expect("non unicode path to testdir"),
+                    );
+                })
+            })
+            .collect();
 
         // Download the streams from the mock server, and ensure it was accessed
         tree.download(&server.base_url(), local_stream_path, compression)
             .await?;
 
-        mock_a.assert();
-        mock_b.assert();
+        for mock in mocks {
+            mock.assert();
+        }
 
         // Deploy the mock server
         tree.deploy(local_stream_path, deploy_path)?;

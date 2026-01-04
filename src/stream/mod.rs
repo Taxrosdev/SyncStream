@@ -11,11 +11,15 @@ use std::os::unix::fs::MetadataExt;
 use crate::compression::CompressionKind;
 use crate::fs;
 
+/// A `Stream` is an underlying representation of the underlying file, typically renamed to
+/// `{hash}_{permissions}` on-disk.
 #[derive(Hash, Clone, Debug)]
 pub struct Stream {
+    /// Blake3 Hash of underlying file
     pub hash: String,
+    /// Filename of the underlying file, should not contain any '/' or directories
     pub file_name: OsString,
-    #[cfg(unix)]
+    /// Posix permission mode
     pub mode: Option<u32>,
 }
 
@@ -35,13 +39,13 @@ impl Stream {
         let res = reqwest::get(format!(
             "{}/streams/{}{}",
             url.as_ref(),
-            self.hash,
+            self.raw_filename(),
             compression_kind.get_extension_with_dot()
         ))
         .await?;
         let res = res.error_for_status()?;
 
-        let file_path = stream_dir.as_ref().join(&self.hash);
+        let file_path = stream_dir.as_ref().join(&self.raw_filename());
         let mut tmp_file_path = file_path.clone();
         tmp_file_path.set_extension("tmp");
         let mut file = fs::File::create_new(&tmp_file_path).await?;
@@ -98,10 +102,6 @@ impl Stream {
             .ok_or(io::Error::from(io::ErrorKind::IsADirectory))?
             .into();
 
-        // Get Permissions/Mode
-        #[cfg(unix)]
-        let mode = file.as_ref().metadata()?.mode();
-
         let mut hasher = Hasher::new();
 
         let mut output_temp_path = stream_dir.as_ref().join(&file_name);
@@ -125,8 +125,10 @@ impl Stream {
         #[cfg(not(feature = "tokio"))]
         writer.close().await?;
 
+        let mode = get_mode(&file)?;
+
         // Final paths
-        let uncompressed_path = stream_dir.as_ref().join(&hash);
+        let uncompressed_path = stream_dir.as_ref().join(raw_filename(&hash, mode));
         let mut compressed_path = uncompressed_path.clone();
         if let Some(extension) = compression_kind.try_get_extension() {
             compressed_path.set_extension(extension);
@@ -142,9 +144,37 @@ impl Stream {
             hash,
             file_name,
             #[cfg(unix)]
-            mode: Some(mode),
+            mode,
         })
     }
+
+    /// Gets the raw filesystem on-disk inside the streams directory.
+    /// Typically `{file_name}_{mode}`, but this should not be relied on for future behaviour.
+    #[must_use]
+    pub fn raw_filename(&self) -> String {
+        raw_filename(&self.hash, self.mode)
+    }
+}
+
+fn raw_filename(hash: &str, mode: Option<u32>) -> String {
+    if let Some(mode) = mode {
+        format!("{hash}_{mode}")
+    } else {
+        hash.to_string()
+    }
+}
+
+// Get Permissions/Mode
+fn get_mode<P: AsRef<Path>>(path: P) -> io::Result<Option<u32>> {
+    #[cfg(unix)]
+    let mode = path.as_ref().metadata()?.mode();
+
+    #[cfg(not(unix))]
+    let mode = None;
+    #[cfg(unix)]
+    let mode = Some(mode);
+
+    Ok(mode)
 }
 
 #[cfg(test)]
@@ -168,7 +198,10 @@ mod tests {
         assert_eq!(stream.file_name, test_file.path().file_name().unwrap());
         assert_eq!(stream.hash, expected_hash);
 
-        let uncompressed_file = stream_dir.path().join(expected_hash);
+        let mode = get_mode(test_file)?;
+        let filename = raw_filename(expected_hash, mode);
+
+        let uncompressed_file = stream_dir.path().join(raw_filename(expected_hash, mode));
         let mut compressed_file = uncompressed_file.clone();
         if let Some(extension) = compression_kind.try_get_extension() {
             compressed_file.set_extension(extension);
@@ -216,11 +249,11 @@ mod tests {
         let server = MockServer::start();
         let stream_mock = server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/streams/{}.zstd", &stream.hash));
+                .path(format!("/streams/{}.zstd", stream.raw_filename()));
             then.status(200).body_from_file(
                 remote_stream_dir
                     .path()
-                    .join(format!("{}.zstd", &stream.hash))
+                    .join(format!("{}.zstd", &stream.raw_filename()))
                     .to_str()
                     .unwrap(),
             );
@@ -234,7 +267,7 @@ mod tests {
             )
             .await?;
 
-        let local_stream_file = local_stream_dir.path().join(stream.hash);
+        let local_stream_file = local_stream_dir.path().join(stream.raw_filename());
 
         assert!(&local_stream_file.exists());
         assert_eq!(fs::read_to_end(local_stream_file).await?, test_data);
