@@ -200,9 +200,12 @@ mod tests {
         tree.deploy(local_stream_path, deploy_path)?;
 
         // Ensure everything is correct
-        assert_eq!(fs::read_to_end(deploy_path.join("file")).await?, a_contents);
         assert_eq!(
-            fs::read_to_end(deploy_path.join("a/b/c")).await?,
+            fs::oneshot::read_to_end(deploy_path.join("file")).await?,
+            a_contents
+        );
+        assert_eq!(
+            fs::oneshot::read_to_end(deploy_path.join("a/b/c")).await?,
             b_contents
         );
 
