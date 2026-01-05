@@ -73,3 +73,101 @@ impl Stream {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use httpmock::prelude::*;
+    use temp_dir::TempDir;
+    use temp_file::TempFile;
+
+    #[tokio::test]
+    async fn test_download_basic() -> crate::Result<()> {
+        let remote_stream_dir = TempDir::new()?;
+        let local_stream_dir = TempDir::new()?;
+        let test_data = b"This is some test data.";
+        let test_file = TempFile::new()?.with_contents(test_data)?;
+
+        let stream = Stream::create(
+            test_file.path(),
+            remote_stream_dir.path(),
+            CompressionKind::Zstd,
+        )
+        .await?;
+
+        let server = MockServer::start();
+        let stream_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/streams/{}.zstd", stream.raw_filename()));
+            then.status(200).body_from_file(
+                remote_stream_dir
+                    .path()
+                    .join(format!("{}.zstd", &stream.raw_filename()))
+                    .to_str()
+                    .unwrap(),
+            );
+        });
+
+        stream
+            .download(
+                &server.base_url(),
+                local_stream_dir.path(),
+                CompressionKind::Zstd,
+            )
+            .await?;
+
+        let local_stream_file = local_stream_dir.path().join(stream.raw_filename());
+
+        assert!(&local_stream_file.exists());
+        assert_eq!(
+            fs::oneshot::read_to_end(local_stream_file).await?,
+            test_data
+        );
+
+        stream_mock.assert();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_download_invalid_hash() -> crate::Result<()> {
+        let remote_stream_dir = TempDir::new()?;
+        let local_stream_dir = TempDir::new()?;
+        let test_data = b"This is some test data.";
+        let test_file = TempFile::new()?.with_contents(test_data)?;
+
+        let stream = Stream::create(
+            test_file.path(),
+            remote_stream_dir.path(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        fs::write(&remote_stream_dir.child(&stream.hash), "a").await?;
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path(format!("/streams/{}", &stream.hash));
+            then.status(200).body_from_file(
+                remote_stream_dir
+                    .path()
+                    .join(&stream.hash)
+                    .to_str()
+                    .unwrap(),
+            );
+        });
+
+        let res = stream
+            .download(
+                &server.base_url(),
+                local_stream_dir.path(),
+                CompressionKind::Zstd,
+            )
+            .await;
+
+        assert!(res.is_err());
+
+        Ok(())
+    }
+}

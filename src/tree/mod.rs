@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use crate::CompressionKind;
 use crate::stream::Stream;
 
+#[cfg(feature = "reqwest")]
+mod download;
+
 #[derive(Clone, Debug, Hash)]
 pub struct Tree {
     pub permissions: u32,
@@ -21,31 +24,6 @@ pub struct Symlink {
 }
 
 impl Tree {
-    /// Downloads all streams required to build the tree
-    //must_use/
-    /// # Errors
-    ///
-    /// - Filesystem errors (Typically out of space)
-    /// - Network errors (Non-2xx codes, etc)
-    #[cfg(feature = "reqwest")]
-    pub async fn download(
-        &self,
-        repo_url: &str,
-        local_stream_path: &Path,
-        compression: CompressionKind,
-    ) -> crate::Result<()> {
-        for stream in &self.streams {
-            stream
-                .download(repo_url, local_stream_path, compression)
-                .await?;
-        }
-        for tree in &self.subtrees {
-            Box::pin(tree.1.download(repo_url, local_stream_path, compression)).await?;
-        }
-
-        Ok(())
-    }
-
     #[must_use]
     pub fn all_streams(&self) -> Vec<Stream> {
         let mut streams = self.streams.clone();
@@ -134,6 +112,7 @@ impl Tree {
 }
 
 #[cfg(test)]
+#[cfg(feature = "reqwest")]
 mod tests {
     use httpmock::{Mock, prelude::*};
     use temp_dir::TempDir;
@@ -143,7 +122,6 @@ mod tests {
     use crate::fs;
 
     #[tokio::test]
-    #[cfg(feature = "reqwest")]
     async fn test_e2e_tree() -> crate::Result<()> {
         let compression = CompressionKind::Zstd;
 
