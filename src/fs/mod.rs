@@ -1,19 +1,17 @@
 // Exception due to general structure needing to be the same
 #![allow(clippy::unused_async)]
 
-use crate::async_types::{AsyncWrite, AsyncWriteExt, Stream, unfold};
+use crate::async_types::AsyncWrite;
 use std::io;
 use std::path::Path;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+
+pub mod oneshot;
+mod stream;
+pub use stream::*;
 
 #[cfg(not(feature = "tokio"))]
 use futures_util::io::AllowStdIo;
-
-#[cfg(not(feature = "tokio"))]
-use std::io::Read;
-
-const CHUNK_SIZE: usize = 8 * 1024;
 
 pub struct File {
     inner: Pin<Box<dyn AsyncWrite + Send + Unpin>>,
@@ -40,40 +38,6 @@ impl File {
     }
 }
 
-impl AsyncWrite for File {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.inner).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.inner).poll_flush(cx)
-    }
-
-    #[cfg(feature = "tokio")]
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.inner).poll_shutdown(cx)
-    }
-
-    #[cfg(not(feature = "tokio"))]
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.inner).poll_close(cx)
-    }
-}
-
-/// Not recommended outside of tests, as loads entire file into memory.
-pub async fn read_to_end<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
-    #[cfg(feature = "tokio")]
-    let data = tokio::fs::read(path).await?;
-    #[cfg(not(feature = "tokio"))]
-    let data = std::fs::read(path)?;
-
-    Ok(data)
-}
-
 pub async fn remove_file<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> {
     #[cfg(feature = "tokio")]
     tokio::fs::remove_file(path).await?;
@@ -82,48 +46,7 @@ pub async fn remove_file<P: AsRef<Path>>(path: P) -> Result<(), std::io::Error> 
     Ok(())
 }
 
-#[cfg(feature = "tokio")]
-pub async fn read_chunked<P: AsRef<Path>>(
-    path: P,
-) -> io::Result<Pin<Box<impl Stream<Item = io::Result<Vec<u8>>>>>> {
-    use tokio::io::AsyncReadExt;
-
-    let file = tokio::fs::File::open(path).await?;
-
-    Ok(Box::pin(unfold(file, |mut file| async move {
-        let mut buf = vec![0; CHUNK_SIZE];
-
-        match file.read(&mut buf).await {
-            Ok(0) => None,
-            Ok(n) => {
-                buf.truncate(n);
-                Some((Ok(buf), file))
-            }
-            Err(e) => Some((Err(e), file)),
-        }
-    })))
-}
-
-#[cfg(not(feature = "tokio"))]
-pub async fn read_chunked<P: AsRef<Path>>(
-    path: P,
-) -> io::Result<Pin<Box<impl Stream<Item = io::Result<Vec<u8>>>>>> {
-    let file = std::fs::File::open(path)?;
-
-    Ok(Box::pin(unfold(file, |mut file| async move {
-        let mut buf = vec![0; CHUNK_SIZE];
-
-        match file.read(&mut buf) {
-            Ok(0) => None, // EOF → end stream
-            Ok(n) => {
-                buf.truncate(n);
-                Some((Ok(buf), file))
-            }
-            Err(e) => Some((Err(e), file)),
-        }
-    })))
-}
-
+#[cfg(test)]
 pub async fn write<P: AsRef<Path>, C: AsRef<[u8]>>(
     path: P,
     contents: C,
@@ -189,7 +112,9 @@ pub fn rename<P: AsRef<Path>>(original_path: P, new_path: P) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::async_types::AsyncWriteExt;
     use futures_util::StreamExt;
+    use oneshot::read_to_end;
     use temp_dir::TempDir;
     use temp_file::TempFile;
 
@@ -265,7 +190,7 @@ mod tests {
 
         // Effectively the entire test
         let mut file = File::create_new(&file_path).await?;
-        file.write(test_data).await?;
+        file.write_all(test_data).await?;
         drop(file);
 
         assert!(file_path.exists());
