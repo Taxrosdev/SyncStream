@@ -9,7 +9,7 @@ use crate::stream::Stream;
 #[cfg(feature = "reqwest")]
 mod download;
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Tree {
     pub permissions: u32,
     pub streams: Vec<Stream>,
@@ -17,7 +17,7 @@ pub struct Tree {
     pub symlinks: Vec<Symlink>,
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Symlink {
     pub file_name: OsString,
     pub target: PathBuf,
