@@ -189,4 +189,80 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_all_streams() {
+        let mut streams = [
+            Stream {
+                hash: "a".to_string(),
+                file_name: "".into(),
+                mode: Some(0),
+                uncompressed_size: 0,
+                compressed_size: 1,
+            },
+            Stream {
+                hash: "b".to_string(),
+                file_name: "".into(),
+                mode: Some(0),
+                uncompressed_size: 0,
+                compressed_size: 2,
+            },
+            Stream {
+                hash: "c".to_string(),
+                file_name: "".into(),
+                mode: Some(0),
+                uncompressed_size: 0,
+                compressed_size: 3,
+            },
+            Stream {
+                hash: "d".to_string(),
+                file_name: "".into(),
+                mode: Some(0),
+                uncompressed_size: 0,
+                compressed_size: 4,
+            },
+        ];
+
+        let tree = Tree {
+            permissions: 0,
+            streams: vec![streams[3].clone()],
+            subtrees: vec![
+                (
+                    "a".into(),
+                    Tree {
+                        permissions: 0,
+                        streams: vec![streams[0].clone(), streams[1].clone()],
+                        subtrees: vec![],
+                        symlinks: vec![],
+                    },
+                ),
+                (
+                    "b".into(),
+                    Tree {
+                        permissions: 0,
+                        streams: vec![],
+                        subtrees: vec![(
+                            "c".into(),
+                            Tree {
+                                permissions: 0,
+                                streams: vec![streams[2].clone()],
+                                subtrees: vec![],
+                                symlinks: vec![],
+                            },
+                        )],
+                        symlinks: vec![],
+                    },
+                ),
+            ],
+            symlinks: vec![],
+        };
+
+        assert_eq!(tree.all_streams().len(), 4);
+
+        let mut detected_streams = tree.all_streams();
+        detected_streams.sort();
+        streams.sort();
+
+        assert_eq!(detected_streams, streams);
+    }
 }

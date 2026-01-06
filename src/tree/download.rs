@@ -42,10 +42,50 @@ mod tests {
         let remote_stream_path = TempDir::new()?;
         let remote_temp_path = TempDir::new()?;
 
-        //std::fs::create_dir_all(remote_temp_path.child("testdir/subdir"))?;
-
         fs::write(&remote_temp_path.child("small_testfile"), vec![4; 4]).await?;
         fs::write(&remote_temp_path.child("big_testfile"), vec![32; 1024]).await?;
+
+        let tree = Tree::create(
+            remote_stream_path.as_ref(),
+            remote_temp_path.as_ref(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        let server = fs::serve_dir(remote_stream_path)?;
+
+        // Download
+        let local_stream_path = TempDir::new()?;
+
+        tree.download(
+            &server.base_url(),
+            local_stream_path.as_ref(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        // Assert Tests
+        for stream in tree.all_streams() {
+            assert!(local_stream_path.child(stream.raw_filename()).exists());
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_mixed_tree() -> crate::Result<()> {
+        // Build
+        let remote_stream_path = TempDir::new()?;
+        let remote_temp_path = TempDir::new()?;
+
+        std::fs::create_dir_all(remote_temp_path.child("testdir/subdir"))?;
+
+        fs::write(&remote_temp_path.child("small_testfile"), vec![4; 4]).await?;
+        fs::write(
+            &remote_temp_path.child("testdir/big_testfile"),
+            vec![32; 1024],
+        )
+        .await?;
 
         let tree = Tree::create(
             remote_stream_path.as_ref(),

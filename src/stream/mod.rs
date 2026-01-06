@@ -16,7 +16,7 @@ mod download;
 
 /// A `Stream` is an underlying representation of the underlying file, typically renamed to
 /// `{hash}_{permissions}` on-disk.
-#[derive(Hash, Clone, Debug)]
+#[derive(Hash, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Stream {
     /// Blake3 Hash of underlying file
     pub hash: String,
