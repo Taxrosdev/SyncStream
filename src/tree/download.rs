@@ -28,3 +28,57 @@ impl Tree {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fs;
+
+    use temp_dir::TempDir;
+
+    #[tokio::test]
+    async fn test_flat_tree() -> crate::Result<()> {
+        // Build
+        let remote_stream_path = TempDir::new()?;
+        let remote_temp_path = TempDir::new()?;
+
+        //std::fs::create_dir_all(remote_temp_path.child("testdir/subdir"))?;
+
+        fs::write(&remote_temp_path.child("small_testfile"), vec![4; 4]).await?;
+        fs::write(&remote_temp_path.child("big_testfile"), vec![32; 1024]).await?;
+
+        let tree = Tree::create(
+            remote_stream_path.as_ref(),
+            remote_temp_path.as_ref(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        let server = fs::serve_dir(remote_stream_path)?;
+
+        // Download
+        let local_stream_path = TempDir::new()?;
+
+        tree.download(
+            &server.base_url(),
+            local_stream_path.as_ref(),
+            CompressionKind::None,
+        )
+        .await?;
+
+        // Assert Tests
+        assert_eq!(tree.subtrees.len(), 0);
+        assert!(
+            local_stream_path
+                .child(tree.streams[0].raw_filename())
+                .exists()
+        );
+        assert!(
+            local_stream_path
+                .child(tree.streams[1].raw_filename())
+                .exists()
+        );
+
+        Ok(())
+    }
+}

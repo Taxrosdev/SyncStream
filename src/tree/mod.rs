@@ -155,7 +155,7 @@ mod tests {
             .map(|stream| {
                 server.mock(|when, then| {
                     when.method(GET)
-                        .path(format!("/streams/{}.zstd", stream.raw_filename()));
+                        .path(format!("/{}.zstd", stream.raw_filename()));
                     then.status(200).body_from_file(
                         remote_stream_path
                             .join(format!("{}.zstd", stream.raw_filename()))

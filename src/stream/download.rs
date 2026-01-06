@@ -24,7 +24,7 @@ impl Stream {
         compression_kind: CompressionKind,
     ) -> crate::Result<PathBuf> {
         let res = reqwest::get(format!(
-            "{}/streams/{}{}",
+            "{}/{}{}",
             url.as_ref(),
             self.raw_filename(),
             compression_kind.get_extension_with_dot()
@@ -99,7 +99,7 @@ mod tests {
         let server = MockServer::start();
         let stream_mock = server.mock(|when, then| {
             when.method(GET)
-                .path(format!("/streams/{}.zstd", stream.raw_filename()));
+                .path(format!("/{}.zstd", stream.raw_filename()));
             then.status(200).body_from_file(
                 remote_stream_dir
                     .path()
@@ -148,7 +148,7 @@ mod tests {
 
         let server = MockServer::start();
         server.mock(|when, then| {
-            when.method(GET).path(format!("/streams/{}", &stream.hash));
+            when.method(GET).path(format!("/{}", &stream.hash));
             then.status(200).body_from_file(
                 remote_stream_dir
                     .path()

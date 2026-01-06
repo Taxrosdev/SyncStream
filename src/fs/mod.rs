@@ -13,6 +13,9 @@ pub use stream::*;
 #[cfg(not(feature = "tokio"))]
 use futures_util::io::AllowStdIo;
 
+#[cfg(test)]
+use httpmock::prelude::*;
+
 pub struct File {
     inner: Pin<Box<dyn AsyncWrite + Send + Unpin>>,
 }
@@ -107,6 +110,24 @@ pub fn rename<P: AsRef<Path>>(original_path: P, new_path: P) -> io::Result<()> {
     std::fs::rename(original_path, new_path)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+pub fn serve_dir<P: AsRef<Path>>(path: P) -> crate::Result<MockServer> {
+    let server = httpmock::MockServer::start();
+    for entry in std::fs::read_dir(path.as_ref())? {
+        let entry = entry?;
+        let path = entry.path().into_os_string().into_string().unwrap();
+        let filename = entry.file_name().into_string().unwrap();
+
+        // Create mocks
+        server.mock(|when, then| {
+            when.method(GET).path(format!("/{filename}"));
+            then.body_from_file(path);
+        });
+    }
+
+    Ok(server)
 }
 
 #[cfg(test)]
