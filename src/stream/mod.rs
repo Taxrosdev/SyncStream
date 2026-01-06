@@ -27,6 +27,7 @@ pub struct Stream {
     /// Uncompressed size on-disk in bytes
     pub uncompressed_size: u64,
     /// Compressed size on-disk in bytes
+    /// If `CompressionKind::None`, then this is likely the same as `uncompressed_size`.
     pub compressed_size: u64,
 }
 
