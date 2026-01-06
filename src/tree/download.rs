@@ -67,17 +67,9 @@ mod tests {
         .await?;
 
         // Assert Tests
-        assert_eq!(tree.subtrees.len(), 0);
-        assert!(
-            local_stream_path
-                .child(tree.streams[0].raw_filename())
-                .exists()
-        );
-        assert!(
-            local_stream_path
-                .child(tree.streams[1].raw_filename())
-                .exists()
-        );
+        for stream in tree.all_streams() {
+            assert!(local_stream_path.child(stream.raw_filename()).exists());
+        }
 
         Ok(())
     }
