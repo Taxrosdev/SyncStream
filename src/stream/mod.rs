@@ -24,6 +24,10 @@ pub struct Stream {
     pub file_name: OsString,
     /// Posix permission mode
     pub mode: Option<u32>,
+    /// Uncompressed size on-disk in bytes
+    pub uncompressed_size: u64,
+    /// Compressed size on-disk in bytes
+    pub compressed_size: u64,
 }
 
 impl Stream {
@@ -76,7 +80,7 @@ impl Stream {
         }
 
         // Move/Copy to final path
-        fs::rename(output_temp_path, compressed_path)?;
+        fs::rename(output_temp_path, compressed_path.clone())?;
         if std::fs::hard_link(&file, &uncompressed_path).is_err() {
             std::fs::copy(&file, &uncompressed_path)?;
         }
@@ -86,6 +90,8 @@ impl Stream {
             file_name,
             #[cfg(unix)]
             mode,
+            uncompressed_size: std::fs::metadata(uncompressed_path)?.size(),
+            compressed_size: std::fs::metadata(compressed_path)?.size(),
         })
     }
 
