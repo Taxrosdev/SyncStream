@@ -1503,6 +1503,7 @@ dependencies = [
  "httpmock",
  "nix",
  "reqwest",
+ "serde",
  "temp-dir",
  "temp-file",
  "thiserror 2.0.17",

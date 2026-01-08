@@ -15,6 +15,7 @@ blake3 = "^1.8"
 futures-core = "^0.3"
 futures-util = { version = "^0.3", features = ["io"] }
 reqwest = { version = "^0.13", features = ["stream"], optional = true }
+serde = { version = "^1.0", features = ["derive"], optional = true }
 thiserror = "^2"
 tokio = { version = "^1.48", features = ["fs", "macros"], optional = true }
 tokio-stream = { version = "^0.1", optional = true }
@@ -27,6 +28,7 @@ nix = { version = "^0.30", features = ["fs"] }
 default = ["reqwest"]
 reqwest = ["dep:reqwest"]
 tokio = ["dep:tokio", "dep:tokio-stream", "dep:tokio-util", "async-compression/tokio"]
+serde = ["dep:serde"]
 
 [dev-dependencies]
 httpmock = "^0.8"

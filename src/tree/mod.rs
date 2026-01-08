@@ -9,6 +9,7 @@ use crate::stream::Stream;
 #[cfg(feature = "reqwest")]
 mod download;
 
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Tree {
     pub permissions: u32,
@@ -17,6 +18,7 @@ pub struct Tree {
     pub symlinks: Vec<Symlink>,
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Clone, Debug, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Symlink {
     pub file_name: OsString,

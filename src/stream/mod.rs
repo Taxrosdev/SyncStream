@@ -16,6 +16,7 @@ mod download;
 
 /// A `Stream` is an underlying representation of the underlying file, typically renamed to
 /// `{hash}_{permissions}` on-disk.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Hash, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Stream {
     /// Blake3 Hash of underlying file
