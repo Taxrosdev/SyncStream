@@ -71,8 +71,16 @@ impl Stream {
         // Check if this stream exists already
         if !uncompressed_path.exists() || !compressed_path.exists() {
             // Then Compress
-            let mut output_temp_path = stream_dir.as_ref().join(&file_name);
+            let temp_filename = blake3::hash(file.as_ref().as_os_str().as_encoded_bytes())
+                .to_hex()
+                .to_string();
+            let mut output_temp_path = stream_dir.as_ref().join(temp_filename);
             output_temp_path.set_file_name("tmp");
+
+            // Remove temp file if it already exists
+            if output_temp_path.exists() {
+                std::fs::remove_file(&output_temp_path)?;
+            }
 
             let output_file = fs::File::create_new(&output_temp_path).await?;
 
