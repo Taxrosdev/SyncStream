@@ -51,40 +51,49 @@ impl Stream {
 
         let mut hasher = Hasher::new();
 
-        let mut output_temp_path = stream_dir.as_ref().join(&file_name);
-        output_temp_path.set_file_name("tmp");
-
-        let output_file = fs::File::create_new(&output_temp_path).await?;
-
-        let mut writer = compression_kind.compress(output_file);
-
-        // Hash and compress
+        // Hash first
         let mut stream = fs::read_chunked(&file).await?;
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
             hasher.write_all(&chunk)?;
-            writer.write_all(&chunk).await?;
         }
 
         let hash = hasher.finalize().to_hex().to_string();
-        #[cfg(feature = "tokio")]
-        writer.shutdown().await?;
-        #[cfg(not(feature = "tokio"))]
-        writer.close().await?;
 
+        // Prepare Final paths
         let mode = get_mode(&file)?;
-
-        // Final paths
         let uncompressed_path = stream_dir.as_ref().join(raw_filename(&hash, mode));
         let mut compressed_path = uncompressed_path.clone();
         if let Some(extension) = compression_kind.try_get_extension() {
             compressed_path.set_extension(extension);
         }
 
-        // Move/Copy to final path
-        fs::rename(output_temp_path, compressed_path.clone())?;
-        if std::fs::hard_link(&file, &uncompressed_path).is_err() {
-            std::fs::copy(&file, &uncompressed_path)?;
+        // Check if this stream exists already
+        if !uncompressed_path.exists() || !compressed_path.exists() {
+            // Then Compress
+            let mut output_temp_path = stream_dir.as_ref().join(&file_name);
+            output_temp_path.set_file_name("tmp");
+
+            let output_file = fs::File::create_new(&output_temp_path).await?;
+
+            let mut writer = compression_kind.compress(output_file);
+
+            let mut stream = fs::read_chunked(&file).await?;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk?;
+                writer.write_all(&chunk).await?;
+            }
+
+            #[cfg(feature = "tokio")]
+            writer.shutdown().await?;
+            #[cfg(not(feature = "tokio"))]
+            writer.close().await?;
+
+            // Move/Copy to final path
+            fs::rename(output_temp_path, compressed_path.clone())?;
+            if std::fs::hard_link(&file, &uncompressed_path).is_err() {
+                std::fs::copy(&file, &uncompressed_path)?;
+            }
         }
 
         Ok(Self {
@@ -96,6 +105,12 @@ impl Stream {
             compressed_size: std::fs::metadata(compressed_path)?.size(),
         })
     }
+
+    /*
+    pub async fn deploy() -> io::Result<()> {
+        todo!()
+    }
+    */
 
     /// Gets the raw filesystem on-disk inside the streams directory.
     /// Typically `{file_name}_{mode}`, but this should not be relied on for future behaviour.
