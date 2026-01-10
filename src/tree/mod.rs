@@ -122,6 +122,7 @@ mod tests {
     use super::*;
     use crate::CompressionKind;
     use crate::fs;
+    use crate::stream::StringLike;
 
     #[tokio::test]
     async fn test_e2e_tree() -> crate::Result<()> {
@@ -197,28 +198,28 @@ mod tests {
         let mut streams = [
             Stream {
                 hash: "a".to_string(),
-                file_name: "".into(),
+                file_name: StringLike::empty(),
                 mode: Some(0),
                 uncompressed_size: 0,
                 compressed_size: 1,
             },
             Stream {
                 hash: "b".to_string(),
-                file_name: "".into(),
+                file_name: StringLike::empty(),
                 mode: Some(0),
                 uncompressed_size: 0,
                 compressed_size: 2,
             },
             Stream {
                 hash: "c".to_string(),
-                file_name: "".into(),
+                file_name: StringLike::empty(),
                 mode: Some(0),
                 uncompressed_size: 0,
                 compressed_size: 3,
             },
             Stream {
                 hash: "d".to_string(),
-                file_name: "".into(),
+                file_name: StringLike::empty(),
                 mode: Some(0),
                 uncompressed_size: 0,
                 compressed_size: 4,

@@ -1,6 +1,6 @@
 use crate::async_types::{AsyncWriteExt, StreamExt};
 use blake3::Hasher;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::io::Write;
 use std::path::Path;
@@ -22,7 +22,7 @@ pub struct Stream {
     /// Blake3 Hash of underlying file
     pub hash: String,
     /// Filename of the underlying file, should not contain any '/' or directories
-    pub file_name: OsString,
+    pub file_name: StringLike,
     /// Posix permission mode
     pub mode: Option<u32>,
     /// Uncompressed size on-disk in bytes
@@ -30,6 +30,54 @@ pub struct Stream {
     /// Compressed size on-disk in bytes
     /// If `CompressionKind::None`, then this is likely the same as `uncompressed_size`.
     pub compressed_size: u64,
+}
+
+/// Serde has a REALLY inefficent method of storing OsStrings, and when possible, we'd prefer to
+/// not have to use it.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Hash, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
+pub enum StringLike {
+    OsString(OsString),
+    String(String),
+}
+
+impl StringLike {
+    #[must_use]
+    pub fn empty() -> Self {
+        StringLike::String(String::new())
+    }
+}
+
+impl From<&Path> for StringLike {
+    fn from(path: &Path) -> Self {
+        let filename = path.file_name().unwrap_or_else(|| OsStr::new(""));
+
+        filename.into()
+    }
+}
+
+impl From<&OsStr> for StringLike {
+    fn from(str: &OsStr) -> Self {
+        str.to_owned().into()
+    }
+}
+
+impl From<OsString> for StringLike {
+    fn from(str: OsString) -> Self {
+        match str.into_string() {
+            Ok(str) => StringLike::String(str),
+            Err(str) => StringLike::OsString(str),
+        }
+    }
+}
+
+impl AsRef<Path> for StringLike {
+    fn as_ref(&self) -> &Path {
+        match self {
+            StringLike::String(s) => Path::new(s),
+            StringLike::OsString(s) => Path::new(s),
+        }
+    }
 }
 
 impl Stream {
@@ -46,8 +94,7 @@ impl Stream {
         let file_name = file
             .as_ref()
             .file_name()
-            .ok_or(io::Error::from(io::ErrorKind::IsADirectory))?
-            .into();
+            .ok_or(io::Error::from(io::ErrorKind::IsADirectory))?;
 
         let mut hasher = Hasher::new();
 
@@ -106,7 +153,7 @@ impl Stream {
 
         Ok(Self {
             hash,
-            file_name,
+            file_name: file_name.into(),
             #[cfg(unix)]
             mode,
             uncompressed_size: std::fs::metadata(uncompressed_path)?.size(),
@@ -166,7 +213,10 @@ mod tests {
 
         let stream = Stream::create(test_file.path(), stream_dir.path(), compression_kind).await?;
 
-        assert_eq!(stream.file_name, test_file.path().file_name().unwrap());
+        assert_eq!(
+            stream.file_name,
+            test_file.path().file_name().unwrap().into()
+        );
         assert_eq!(stream.hash, expected_hash);
 
         let mode = get_mode(test_file)?;
@@ -200,7 +250,10 @@ mod tests {
             let stream =
                 Stream::create(test_file.path(), stream_dir.path(), compression_kind).await?;
 
-            assert_eq!(stream.file_name, test_file.path().file_name().unwrap());
+            assert_eq!(
+                stream.file_name,
+                test_file.path().file_name().unwrap().into()
+            );
         }
 
         Ok(())
