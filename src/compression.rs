@@ -7,27 +7,22 @@ pub enum CompressionKind {
     Zstd,
     Xz,
     Lz4,
-    None,
 }
 
 impl CompressionKind {
     #[must_use]
-    pub fn try_get_extension(&self) -> Option<&'static str> {
+    pub fn try_get_extension(&self) -> &'static str {
         match self {
-            CompressionKind::Zstd => Some("zstd"),
-            CompressionKind::Lz4 => Some("lz4"),
-            CompressionKind::Xz => Some("xz"),
-            CompressionKind::None => None,
+            CompressionKind::Zstd => "zstd",
+            CompressionKind::Lz4 => "lz4",
+            CompressionKind::Xz => "xz",
         }
     }
 
     /// WARNING: This should only be used internally, and may be removed in a future release.
     #[must_use]
     pub fn get_extension_with_dot(&self) -> String {
-        match self.try_get_extension() {
-            Some(e) => format!(".{e}"),
-            None => String::new(),
-        }
+        format!(".{}", self.try_get_extension())
     }
 
     pub fn compress<'a, W: AsyncWrite + Send + 'a>(
@@ -38,7 +33,6 @@ impl CompressionKind {
             CompressionKind::Zstd => Box::pin(ZstdEncoder::new(sink)),
             CompressionKind::Xz => Box::pin(XzEncoder::new(sink)),
             CompressionKind::Lz4 => Box::pin(Lz4Encoder::new(sink)),
-            CompressionKind::None => Box::pin(sink),
         }
     }
 
@@ -50,7 +44,6 @@ impl CompressionKind {
             CompressionKind::Zstd => Box::pin(ZstdDecoder::new(source)),
             CompressionKind::Xz => Box::pin(XzDecoder::new(source)),
             CompressionKind::Lz4 => Box::pin(Lz4Decoder::new(source)),
-            CompressionKind::None => Box::pin(source),
         }
     }
 }
@@ -67,7 +60,6 @@ mod tests {
             CompressionKind::Zstd,
             CompressionKind::Xz,
             CompressionKind::Lz4,
-            CompressionKind::None,
         ] {
             // Test random data
             for input in [
@@ -130,14 +122,12 @@ mod tests {
         assert_eq!(CompressionKind::Zstd.get_extension_with_dot(), ".zstd");
         assert_eq!(CompressionKind::Lz4.get_extension_with_dot(), ".lz4");
         assert_eq!(CompressionKind::Xz.get_extension_with_dot(), ".xz");
-        assert_eq!(CompressionKind::None.get_extension_with_dot(), "");
     }
 
     #[test]
     fn test_compression_filenames() {
-        assert_eq!(CompressionKind::Zstd.try_get_extension(), Some("zstd"));
-        assert_eq!(CompressionKind::Lz4.try_get_extension(), Some("lz4"));
-        assert_eq!(CompressionKind::Xz.try_get_extension(), Some("xz"));
-        assert_eq!(CompressionKind::None.try_get_extension(), None);
+        assert_eq!(CompressionKind::Zstd.try_get_extension(), "zstd");
+        assert_eq!(CompressionKind::Lz4.try_get_extension(), "lz4");
+        assert_eq!(CompressionKind::Xz.try_get_extension(), "xz");
     }
 }

@@ -140,7 +140,7 @@ mod tests {
         let stream = Stream::create(
             test_file.path(),
             remote_stream_dir.path(),
-            CompressionKind::None,
+            CompressionKind::Zstd,
         )
         .await?;
 

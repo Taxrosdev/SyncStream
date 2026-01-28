@@ -48,7 +48,7 @@ mod tests {
         let tree = Tree::create(
             remote_stream_path.as_ref(),
             remote_temp_path.as_ref(),
-            CompressionKind::None,
+            CompressionKind::Zstd,
         )
         .await?;
 
@@ -60,7 +60,7 @@ mod tests {
         tree.download(
             &server.base_url(),
             local_stream_path.as_ref(),
-            CompressionKind::None,
+            CompressionKind::Zstd,
         )
         .await?;
 
@@ -90,7 +90,7 @@ mod tests {
         let tree = Tree::create(
             remote_stream_path.as_ref(),
             remote_temp_path.as_ref(),
-            CompressionKind::None,
+            CompressionKind::Zstd,
         )
         .await?;
 
@@ -102,7 +102,7 @@ mod tests {
         tree.download(
             &server.base_url(),
             local_stream_path.as_ref(),
-            CompressionKind::None,
+            CompressionKind::Zstd,
         )
         .await?;
 

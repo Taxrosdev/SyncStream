@@ -28,7 +28,6 @@ pub struct Stream {
     /// Uncompressed size on-disk in bytes
     pub uncompressed_size: u64,
     /// Compressed size on-disk in bytes
-    /// If `CompressionKind::None`, then this is likely the same as `uncompressed_size`.
     pub compressed_size: u64,
 }
 
@@ -109,14 +108,12 @@ impl Stream {
 
         // Prepare Final paths
         let mode = get_mode(&file)?;
-        let uncompressed_path = stream_dir.as_ref().join(raw_filename(&hash, mode));
-        let mut compressed_path = uncompressed_path.clone();
-        if let Some(extension) = compression_kind.try_get_extension() {
-            compressed_path.set_extension(extension);
-        }
+        let mut path = stream_dir.as_ref().join(raw_filename(&hash, mode));
+        let extension = compression_kind.try_get_extension();
+        path.set_extension(extension);
 
         // Check if this stream exists already
-        if !uncompressed_path.exists() || !compressed_path.exists() {
+        if !path.exists() {
             // Then Compress
             let temp_filename = blake3::hash(file.as_ref().as_os_str().as_encoded_bytes())
                 .to_hex()
@@ -145,10 +142,7 @@ impl Stream {
             writer.close().await?;
 
             // Move/Copy to final path
-            fs::rename(output_temp_path, compressed_path.clone())?;
-            if std::fs::hard_link(&file, &uncompressed_path).is_err() {
-                std::fs::copy(&file, &uncompressed_path)?;
-            }
+            fs::rename(output_temp_path, path.clone())?;
         }
 
         Ok(Self {
@@ -156,8 +150,8 @@ impl Stream {
             file_name: file_name.into(),
             #[cfg(unix)]
             mode,
-            uncompressed_size: std::fs::metadata(uncompressed_path)?.size(),
-            compressed_size: std::fs::metadata(compressed_path)?.size(),
+            uncompressed_size: std::fs::metadata(file.as_ref())?.size(),
+            compressed_size: std::fs::metadata(path)?.size(),
         })
     }
 
@@ -199,6 +193,7 @@ fn get_mode<P: AsRef<Path>>(path: P) -> io::Result<Option<u32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::async_types::AsyncReadExt;
     use temp_dir::TempDir;
     use temp_file::TempFile;
 
@@ -222,19 +217,19 @@ mod tests {
         let mode = get_mode(test_file)?;
         let filename = raw_filename(expected_hash, mode);
 
-        let uncompressed_file = stream_dir.path().join(filename);
-        let mut compressed_file = uncompressed_file.clone();
-        if let Some(extension) = compression_kind.try_get_extension() {
-            compressed_file.set_extension(extension);
-        }
+        let mut file = stream_dir.path().join(filename);
+        let extension = compression_kind.try_get_extension();
+        file.set_extension(extension);
 
-        assert!(uncompressed_file.exists());
-        assert!(compressed_file.exists());
-        assert_eq!(
-            fs::oneshot::read_to_end(uncompressed_file).await?,
-            test_data
-        );
-        // TODO: Perhaps check contents of compressed?
+        assert!(file.exists());
+
+        // Read and decompress the file
+        let compressed_data = fs::oneshot::read_to_end(file).await?;
+        let mut decoder = compression_kind.decompress(&compressed_data[..]);
+        let mut decompressed_data = Vec::new();
+        decoder.read_to_end(&mut decompressed_data).await?;
+
+        assert_eq!(decompressed_data, test_data);
 
         Ok(())
     }
@@ -244,7 +239,7 @@ mod tests {
         let stream_dir = TempDir::new()?;
 
         for input in [&[][..], &[0u8; 1024][..], &[0u8; 16384][..]] {
-            let compression_kind = CompressionKind::None;
+            let compression_kind = CompressionKind::Zstd;
             let test_file = TempFile::new()?.with_contents(input)?;
 
             let stream =
